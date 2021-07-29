@@ -6,7 +6,8 @@ import fire
 import unisal
 
 
-def train(eval_sources=('DHF1K', 'SALICON', 'UCFSports', 'Hollywood'),
+def train(eval_sources=('P4SGAN'), 
+          #eval_sources=('DHF1K', 'SALICON', 'UCFSports', 'Hollywood')
           **kwargs):
     """Run training and evaluation."""
     trainer = unisal.train.Trainer(**kwargs)
@@ -29,7 +30,8 @@ def load_trainer(train_id=None):
 
 def score_model(
         train_id=None,
-        sources=('DHF1K', 'SALICON', 'UCFSports', 'Hollywood'),
+        sources=('P4SGAN', ),
+        #sources=('DHF1K', 'SALICON', 'UCFSports', 'Hollywood'),
         **kwargs):
     """Compute the scores for a trained model."""
 

@@ -24,6 +24,8 @@ if "DHF1K_DATA_DIR" not in os.environ:
     os.environ["DHF1K_DATA_DIR"] = str(default_data_dir / "DHF1K")
 if "SALICON_DATA_DIR" not in os.environ:
     os.environ["SALICON_DATA_DIR"] = str(default_data_dir / "SALICON")
+if "P4SGAN_DATA_DIR" not in os.environ:
+    os.environ["P4SGAN_DATA_DIR"] = str(default_data_dir / "P4SGAN")
 if "HOLLYWOOD_DATA_DIR" not in os.environ:
     os.environ["HOLLYWOOD_DATA_DIR"] = str(
         default_data_dir / "Hollywood2_actions")
@@ -45,7 +47,126 @@ def get_dataloader(src='DHF1K'):
         return ImgSizeDataLoader
     return DataLoader
 
+class P4SGANDataset(Dataset, utils.KwConfigClass):
 
+    source = 'P4SGAN'
+    dynamic = False
+
+    def __init__(self, phase='train', subset=None, verbose=1,
+                out_size=(288, 384), target_size=(224,224),
+                 preproc_cfg=None):
+        self.phase = phase
+        self.train = phase == 'train'
+        self.subset = subset
+        self.verbose = verbose
+        self.out_size = out_size
+        self.target_size = target_size
+        #rgb_mean: [0.563145250208944, 0.5804393702400331, 0.5746690399191079]
+        #rgb_std: [0.1801928517750171, 0.17029934747057413, 0.17080486729032698]
+        self.preproc_cfg = {
+            'rgb_mean':(0.563, 0.580, 0.574),
+            'rgb_std': (0.180, 0.170, 0.171),
+        }
+        if preproc_cfg is not None:
+            self.preproc_cfg.update(preproc_cfg)
+        self.phase_str = 'val' if phase in ('valid', 'eval') else phase
+        self.file_stem = f"RGB_"
+        
+        self.type = "RGB"
+        
+        self.samples = self.prepare_samples()
+        self.n_samples = len(self.samples)
+        self.n_images_dict = {img_nr: 1 for img_nr in self.samples}
+        self.target_size_dict = {
+            img_nr: self.target_size for img_nr in self.samples}
+        self.frame_module = 1
+        
+        print(self.n_samples)
+
+
+    @property
+    def dir(self):
+        return Path(os.environ["P4SGAN_DATA_DIR"])
+
+    def prepare_samples(self):
+        samples = []
+        for file in (self.dir / 'images' / self.phase_str).glob(self.file_stem + '*.png'):
+            samples.append(str(file).split("RGB_")[-1].split(".")[0])
+
+        #dir_rgb = [x for x in os.listdir(self.dir / "images") if (x.startswith("RGB_") & x.endswith(".png"))]
+        #dir_rgb.sort(key=lambda x: int(((x.split("RGB_")[1])).split(".")[0]))
+        #samples = dir_rgb
+        #return samples
+        
+        return sorted(samples)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def get_map(self, img_nr):
+        map_file = self.dir / 'maps' / self.phase_str / (self.file_stem + img_nr + ".png")
+        map = cv2.imread(str(map_file), cv2.IMREAD_GRAYSCALE) #question?
+        assert(map is not None)
+        return map
+
+    def get_img(self, img_nr):
+        img_file = self.dir / 'images' / self.phase_str / (self.file_stem + img_nr + '.png')
+        img = cv2.imread(str(img_file), cv2.COLOR_BGR2RGB)
+        assert(img is not None)
+        return np.ascontiguousarray(img[:, :, ::-1])
+    
+    def get_fixation_map(self, img_nr):
+        fix_map_file = self.dir / 'fixations' / self.phase_str / (
+                self.file_stem + self.file_nr.format(img_nr) + '.png')
+        if fix_map_file.exists():
+            fix_map = cv2.imread(str(fix_map_file), cv2.IMREAD_GRAYSCALE)
+            
+        return fix_map
+
+    def preprocess(self, img, data="img"):
+        transformations = [
+            transforms.ToPILImage(),
+        ]
+        if data == 'img':
+            transformations.append(transforms.Resize(
+                self.out_size, interpolation=PIL.Image.LANCZOS))
+        transformations.append(transforms.ToTensor())
+        if data == 'img' and 'rgb_mean' in self.preproc_cfg:
+            transformations.append(
+                transforms.Normalize(
+                    self.preproc_cfg['rgb_mean'], self.preproc_cfg['rgb_std']))
+        elif data == 'sal':
+            transformations.append(transforms.Resize(self.out_size, interpolation=PIL.Image.LANCZOS))
+            transformations.append(transforms.Lambda(utils.normalize_tensor))
+        elif data == 'fix':
+            transformations.append(
+                transforms.Lambda(lambda fix: torch.gt(fix, 0.5)))
+
+        processing = transforms.Compose(transformations)
+        tensor = processing(img)
+        return tensor
+
+    def get_data(self, img_nr):
+        img = self.get_img(img_nr)
+        img = self.preprocess(img, data='img')
+        if self.phase == 'test':
+            return [1], img, self.target_size
+        sal = self.get_map(img_nr)
+        sal = self.preprocess(sal, data='sal')
+        
+        #fix = self.get_fixation_map(img_nr)
+        #fix = self.preprocess(fix, data='fix')
+
+        #return [1], img, sal, fix, self.target_size
+
+        return [1], img, sal, self.target_sizes
+
+    def __getitem__(self, item):
+        img_nr = self.samples[item]
+        return self.get_data(img_nr)
+    
+
+    
 class SALICONDataset(Dataset, utils.KwConfigClass):
 
     source = 'SALICON'
@@ -54,6 +175,7 @@ class SALICONDataset(Dataset, utils.KwConfigClass):
     def __init__(self, phase='train', subset=None, verbose=1,
                  out_size=(288, 384), target_size=(480, 640),
                  preproc_cfg=None):
+
         self.phase = phase
         self.train = phase == 'train'
         self.subset = subset
@@ -88,7 +210,7 @@ class SALICONDataset(Dataset, utils.KwConfigClass):
         return map
 
     def get_img(self, img_nr):
-        img_file = self.dir / 'images' / (
+        img_file = self.dir / 'images/val' / (
                 self.file_stem + self.file_nr.format(img_nr) + '.jpg')
         img = cv2.imread(str(img_file))
         assert(img is not None)
@@ -125,7 +247,7 @@ class SALICONDataset(Dataset, utils.KwConfigClass):
 
     def prepare_samples(self):
         samples = []
-        for file in (self.dir / 'images').glob(self.file_stem + '*.jpg'):
+        for file in (self.dir / 'images/val').glob(self.file_stem + '*.jpg'):
             samples.append(int(file.stem[-12:]))
         return sorted(samples)
 

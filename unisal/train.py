@@ -13,6 +13,8 @@ import time
 from itertools import chain
 import math
 
+import os
+
 import torch
 import torch.nn.functional as F
 import cv2
@@ -28,7 +30,7 @@ cv2.setNumThreads(0)
 
 parent_dir = Path(__file__).resolve().parent.parent
 if "TRAIN_DIR" not in os.environ:
-    os.environ["TRAIN_DIR"] = str(parent_dir / "training_runs")
+    os.environ["TRAIN_DIR"] = os.path.join(parent_dir, "training_runs") #str(parent_dir / "training_runs")
 if "PRED_DIR" not in os.environ:
     os.environ["PRED_DIR"] = str(parent_dir / "predictions")
 
@@ -113,6 +115,7 @@ class Trainer(utils.KwConfigClass):
                  ucfsports_weight=1.,
                  data_cfg=None,
                  salicon_cfg=None,
+                 p4sgan_cfg=None,
                  hollywood_cfg=None,
                  ucfsports_cfg=None,
                  shuffle_datasets=True,
@@ -151,6 +154,7 @@ class Trainer(utils.KwConfigClass):
         self.ucfsports_weight = ucfsports_weight
         self.data_cfg = data_cfg or {}
         self.salicon_cfg = salicon_cfg or {}
+        self.p4sgan_cfg = p4sgan_cfg or {}
         self.hollywood_cfg = hollywood_cfg or {}
         self.ucfsports_cfg = ucfsports_cfg or {}
         self.shuffle_datasets = shuffle_datasets
@@ -213,6 +217,7 @@ class Trainer(utils.KwConfigClass):
         self.new_instance = new_instance
         if new_instance:
             self.new_instance = False
+            self.train_dir = str(self.train_dir)
             self.train_dir.mkdir(parents=True, exist_ok=True)
             self.save_cfg(self.train_dir)
             self.model.save_cfg(self.train_dir)
@@ -451,10 +456,10 @@ class Trainer(utils.KwConfigClass):
 
         # Select static or dynamic forward pass for Bypass-RNN
         model_kwargs.update(
-            {'static': model_kwargs['source'] in ('SALICON', 'MIT300', 'MIT1003')})
+            {'static': model_kwargs['source'] in ('SALICON', 'MIT300', 'MIT1003', 'P4SGAN')})
 
         # Set additional parameters
-        static_data = source in ('SALICON', 'MIT300', 'MIT1003')
+        static_data = source in ('SALICON', 'MIT300', 'MIT1003', 'P4SGAN')
         if static_data:
             smooth_method = None
             auc_portion = 1.
@@ -734,10 +739,12 @@ class Trainer(utils.KwConfigClass):
                 print('Last checkpoint loaded')
 
         # Select the appropriate phase (see docstring) and get the dataset
+
         if phase is None:
-            phase = 'eval' if source in ('DHF1K', 'SALICON', 'MIT1003')\
+            phase = 'eval' if source in ('DHF1K', 'SALICON', 'MIT1003', 'PS4GAN')\
                 else 'test'
         dataset = self.get_dataset(phase, source)
+
 
         if vid_nr_array is None:
             # Get list of sample numbers
