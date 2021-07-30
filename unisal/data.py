@@ -15,6 +15,8 @@ import cv2
 import PIL
 import scipy.io
 
+import torch.nn.functional as F
+
 from . import utils
 
 default_data_dir = Path(__file__).resolve().parent.parent / "data"
@@ -53,7 +55,7 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
     dynamic = False
 
     def __init__(self, phase='train', subset=None, verbose=1,
-                out_size=(288, 384), target_size=(224,224),
+                out_size=(288, 384), target_size=(480, 640),
                  preproc_cfg=None):
         self.phase = phase
         self.train = phase == 'train'
@@ -103,10 +105,11 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
     def __len__(self):
         return len(self.samples)
 
-    def get_map(self, img_nr):
-        map_file = self.dir / 'maps' / self.phase_str / (self.file_stem + img_nr + ".png")
+    def get_map(self, img_nr, mode="no_mem"):
+        strP = "currentFrame" if mode=="no_mem" else "withMemory"
+        map_file = self.dir / 'maps' / strP / self.phase_str / ("Sal_" + img_nr + ".png")
         map = cv2.imread(str(map_file), cv2.IMREAD_GRAYSCALE) #question?
-        assert(map is not None)
+        assert map is not None, map_file
         return map
 
     def get_img(self, img_nr):
@@ -136,7 +139,9 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
                 transforms.Normalize(
                     self.preproc_cfg['rgb_mean'], self.preproc_cfg['rgb_std']))
         elif data == 'sal':
+            transformations.append(transforms.ToPILImage())
             transformations.append(transforms.Resize(self.out_size, interpolation=PIL.Image.LANCZOS))
+            transformations.append(transforms.ToTensor())
             transformations.append(transforms.Lambda(utils.normalize_tensor))
         elif data == 'fix':
             transformations.append(
@@ -159,7 +164,7 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
 
         #return [1], img, sal, fix, self.target_size
 
-        return [1], img, sal, self.target_sizes
+        return [1], img, sal, sal, self.target_size
 
     def __getitem__(self, item):
         img_nr = self.samples[item]
@@ -210,7 +215,7 @@ class SALICONDataset(Dataset, utils.KwConfigClass):
         return map
 
     def get_img(self, img_nr):
-        img_file = self.dir / 'images/val' / (
+        img_file = self.dir / 'images' / self.phase_str / (
                 self.file_stem + self.file_nr.format(img_nr) + '.jpg')
         img = cv2.imread(str(img_file))
         assert(img is not None)
@@ -247,7 +252,7 @@ class SALICONDataset(Dataset, utils.KwConfigClass):
 
     def prepare_samples(self):
         samples = []
-        for file in (self.dir / 'images/val').glob(self.file_stem + '*.jpg'):
+        for file in (self.dir / 'images' / self.phase_str).glob(self.file_stem + '*.jpg'):
             samples.append(int(file.stem[-12:]))
         return sorted(samples)
 

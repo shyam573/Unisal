@@ -30,7 +30,7 @@ cv2.setNumThreads(0)
 
 parent_dir = Path(__file__).resolve().parent.parent
 if "TRAIN_DIR" not in os.environ:
-    os.environ["TRAIN_DIR"] = os.path.join(parent_dir, "training_runs") #str(parent_dir / "training_runs")
+    os.environ["TRAIN_DIR"] = str(parent_dir / "training_runs")
 if "PRED_DIR" not in os.environ:
     os.environ["PRED_DIR"] = str(parent_dir / "predictions")
 
@@ -91,7 +91,7 @@ class Trainer(utils.KwConfigClass):
     """
 
     phases = ('train', 'valid')
-    all_data_sources = ('DHF1K', 'Hollywood', 'UCFSports', 'SALICON')
+    all_data_sources = ('DHF1K', 'Hollywood', 'UCFSports', 'SALICON', 'P4SGAN')
 
     def __init__(self,
                  num_epochs=16,
@@ -105,7 +105,7 @@ class Trainer(utils.KwConfigClass):
                  grad_clip=2.,
                  loss_metrics=('kld', 'nss', 'cc'),
                  loss_weights=(1, -0.1, -0.1),
-                 data_sources=('DHF1K', 'Hollywood', 'UCFSports', 'SALICON'),
+                 data_sources=('SALICON', ),
                  batch_size=4,
                  salicon_batch_size=32,
                  hollywood_batch_size=4,
@@ -169,7 +169,8 @@ class Trainer(utils.KwConfigClass):
         self.suffix = suffix
         if prefix is None:
             prefix = utils.get_timestamp()
-        self.prefix = prefix
+            
+        self.prefix = "p4sgan"   #prefix
 
         # Other opertational parameters
         self.num_workers = num_workers
@@ -217,7 +218,6 @@ class Trainer(utils.KwConfigClass):
         self.new_instance = new_instance
         if new_instance:
             self.new_instance = False
-            self.train_dir = str(self.train_dir)
             self.train_dir.mkdir(parents=True, exist_ok=True)
             self.save_cfg(self.train_dir)
             self.model.save_cfg(self.train_dir)
@@ -379,10 +379,11 @@ class Trainer(utils.KwConfigClass):
             # weight decay
             if self.phase == 'train':
                 # Switch the RNN gradients off if this is a image batch
-                rnn_grad = x.shape[1] != 1 or not self.model.bypass_rnn
-                for param in chain(self._model.rnn.parameters(),
-                                   self._model.post_rnn.parameters()):
-                    param.requires_grad = rnn_grad
+                if 'SALICON' not in self.data_sources:
+                    rnn_grad = x.shape[1] != 1 or not self.model.bypass_rnn
+                    for param in chain(self._model.rnn.parameters(),
+                                       self._model.post_rnn.parameters()):
+                        param.requires_grad = rnn_grad
 
                 # Switch the gradients of unused dataset-specific modules off
                 for name, param in self.model.named_parameters():
@@ -1037,7 +1038,7 @@ class Trainer(utils.KwConfigClass):
                     f"{source.lower()}_batch_size")
             elif phase == 'valid' and source == 'MIT1003':
                 batch_size = 8
-            elif source in ('SALICON', 'MIT1003'):
+            elif source in ('SALICON', 'MIT1003', 'P4SGAN'):
                 batch_size = self.salicon_batch_size or len(dataset) //\
                     len(self.get_dataloader(phase))
                 if batch_size > 8:

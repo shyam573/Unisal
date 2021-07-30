@@ -431,7 +431,7 @@ class UNISAL(BaseModel, utils.KwConfigClass):
         # Prepare other parameters
         source_str = f'_{source.lower()}'
         if static is None:
-            static = x.shape[1] == 1 or self.sources == ('SALICON',)
+            static = x.shape[1] == 1 or self.sources == ('SALICON', 'P4SGAN')
 
         # Compute backbone CNN features and concatenate with Gaussian prior maps
         feat_seq_1x = []
