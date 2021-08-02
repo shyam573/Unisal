@@ -6,8 +6,7 @@ import fire
 import unisal
 
 
-def train(eval_sources=('SALICON'), 
-          #eval_sources=('DHF1K', 'SALICON', 'UCFSports', 'Hollywood')
+def train(eval_sources=('DHF1K', 'SALICON', 'UCFSports', 'Hollywood'),
           **kwargs):
     """Run training and evaluation."""
     trainer = unisal.train.Trainer(**kwargs)

@@ -107,7 +107,7 @@ class Trainer(utils.KwConfigClass):
                  loss_weights=(1, -0.1, -0.1),
                  data_sources=('SALICON', ),
                  batch_size=4,
-                 salicon_batch_size=32,
+                 salicon_batch_size=1,
                  hollywood_batch_size=4,
                  ucfsports_batch_size=4,
                  salicon_weight=.5,

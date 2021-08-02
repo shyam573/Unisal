@@ -55,14 +55,16 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
     dynamic = False
 
     def __init__(self, phase='train', subset=None, verbose=1,
-                out_size=(288, 384), target_size=(480, 640),
-                 preproc_cfg=None):
+                out_size=(288, 384), target_size=(360, 560),
+                 preproc_cfg=None, mode="no_mem"):
         self.phase = phase
         self.train = phase == 'train'
         self.subset = subset
         self.verbose = verbose
         self.out_size = out_size
         self.target_size = target_size
+        
+        self.mode = mode
         #rgb_mean: [0.563145250208944, 0.5804393702400331, 0.5746690399191079]
         #rgb_std: [0.1801928517750171, 0.17029934747057413, 0.17080486729032698]
         self.preproc_cfg = {
@@ -82,6 +84,8 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
         self.target_size_dict = {
             img_nr: self.target_size for img_nr in self.samples}
         self.frame_module = 1
+        
+        self.strP = "currentFrame" if self.mode=="no_mem" else "withMemory"
         
         print(self.n_samples)
 
@@ -105,9 +109,8 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
     def __len__(self):
         return len(self.samples)
 
-    def get_map(self, img_nr, mode="no_mem"):
-        strP = "currentFrame" if mode=="no_mem" else "withMemory"
-        map_file = self.dir / 'maps' / strP / self.phase_str / ("Sal_" + img_nr + ".png")
+    def get_map(self, img_nr):
+        map_file = self.dir / 'maps' / self.strP / self.phase_str / ("Sal_" + img_nr + ".png")
         map = cv2.imread(str(map_file), cv2.IMREAD_GRAYSCALE) #question?
         assert map is not None, map_file
         return map
@@ -118,12 +121,29 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
         assert(img is not None)
         return np.ascontiguousarray(img[:, :, ::-1])
     
+    def get_raw_fixations(self, img_nr):
+        raw_fix_file = self.dir / 'fixations_mat' / self.strP /  self.phase_str / (
+                "Fixation_" + img_nr + '.mat')
+        fix_data = scipy.io.loadmat(raw_fix_file)
+        fixations_array = [gaze[2] for gaze in fix_data['gaze'][:, 0]]
+        return fixations_array, fix_data['resolution'].tolist()[0]
+
+    def process_raw_fixations(self, fixations_array, res):
+        fix_map = np.zeros(res, dtype=np.uint8)
+        for subject_fixations in fixations_array:
+            fix_map[subject_fixations[:, 1] - 1, subject_fixations[:, 0] - 1]\
+                = 255
+        return fix_map
+
     def get_fixation_map(self, img_nr):
         fix_map_file = self.dir / 'fixations' / self.phase_str / (
-                self.file_stem + self.file_nr.format(img_nr) + '.png')
+                self.file_stem + img_nr + '.png')
         if fix_map_file.exists():
             fix_map = cv2.imread(str(fix_map_file), cv2.IMREAD_GRAYSCALE)
-            
+        else:
+            fixations_array, res = self.get_raw_fixations(img_nr)
+            fix_map = self.process_raw_fixations(fixations_array, res)
+            cv2.imwrite(str(fix_map_file), fix_map)
         return fix_map
 
     def preprocess(self, img, data="img"):
@@ -159,12 +179,10 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
         sal = self.get_map(img_nr)
         sal = self.preprocess(sal, data='sal')
         
-        #fix = self.get_fixation_map(img_nr)
-        #fix = self.preprocess(fix, data='fix')
+        fix = self.get_fixation_map(img_nr)
+        fix = self.preprocess(fix, data='fix')
 
-        #return [1], img, sal, fix, self.target_size
-
-        return [1], img, sal, sal, self.target_size
+        return [1], img, sal, fix, self.target_size
 
     def __getitem__(self, item):
         img_nr = self.samples[item]
@@ -288,6 +306,7 @@ class SALICONDataset(Dataset, utils.KwConfigClass):
             return [1], img, self.target_size
 
         sal = self.get_map(img_nr)
+        print("3")
         sal = self.preprocess(sal, data='sal')
         fix = self.get_fixation_map(img_nr)
         fix = self.preprocess(fix, data='fix')
