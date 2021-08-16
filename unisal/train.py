@@ -768,7 +768,7 @@ class Trainer(utils.KwConfigClass):
                     smooth_method=smooth_method, metrics=metrics,
                     seq_len_factor=seq_len_factor, n_aucs_maps=n_aucs_maps,
                     auc_portion=auc_portion, model_domain=model_domain)
-                this_scores=[np.float64(0) if x != x else x for x in this_scores]  ### added to handle nan values
+                #this_scores=[np.float64(0) if x != x else x for x in this_scores]  ### added to handle nan values
                 scores.append(this_scores)
                 if vid_idx == 0:
                     print(f' Nr.   ( .../{len(vid_nr_array):4d}), ' +
@@ -1085,7 +1085,6 @@ class Trainer(utils.KwConfigClass):
             sample = next(iter(dl))
             _, x, _ = sample
             x = x.float().cuda()
-            print(x.shape)
             x_0 = x[:1, :1, ...].clone().contiguous()
             output, h0 = self.model(x_0, return_hidden=True)
 
