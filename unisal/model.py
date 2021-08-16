@@ -27,10 +27,10 @@ class BaseModel(nn.Module):
         torch.save(self.state_dict(), directory / f'weights_{name}.pth')
 
     def load_weights(self, directory, name):
-        self.load_state_dict(torch.load(directory / f'weights_{name}.pth'))
+        self.load_state_dict(torch.load(directory / f'weights_{name}.pth'), strict=False)
 
     def load_best_weights(self, directory):
-        self.load_state_dict(torch.load(directory / f'weights_best.pth'))
+        self.load_state_dict(torch.load(directory / f'weights_best.pth'), strict=False)
 
     def load_epoch_checkpoint(self, directory, epoch):
         """Load state_dict from a Trainer checkpoint at a specific epoch"""
@@ -41,7 +41,7 @@ class BaseModel(nn.Module):
         """Load state_dict from a specific Trainer checkpoint"""
         """Load """
         chkpnt = torch.load(file)
-        self.load_state_dict(chkpnt['model_state_dict'])
+        self.load_state_dict(chkpnt['model_state_dict'], strict="False")
 
     def load_last_chkpnt(self, directory):
         """Load state_dict from the last Trainer checkpoint"""
@@ -143,7 +143,7 @@ class UNISAL(BaseModel, utils.KwConfigClass):
                  smoothing_ksize=41,
                  bn_momentum=0.01,
                  static_bn_momentum=0.1,
-                 sources=('DHF1K', 'Hollywood', 'UCFSports', 'SALICON'),
+                 sources=('P4SGAN'),#('DHF1K', 'Hollywood', 'UCFSports', 'SALICON'),
                  ds_bn=True,
                  ds_adaptation=True,
                  ds_smoothing=True,
@@ -202,7 +202,7 @@ class UNISAL(BaseModel, utils.KwConfigClass):
         self.post_cnn = nn.Sequential(OrderedDict(post_cnn))
 
         # Initialize Bypass-RNN if training on dynamic data
-        if sources != ('SALICON',) or not self.bypass_rnn:
+        if sources != ('SALICON',) or sources != ('P4SGAN',) or not self.bypass_rnn:
             self.rnn = ConvGRU(
                 rnn_input_channels,
                 hidden_channels=[rnn_hidden_channels],
@@ -292,7 +292,7 @@ class UNISAL(BaseModel, utils.KwConfigClass):
 
     def get_bn_module(self, num_features, **kwargs):
         """Return BatchNorm class (domain-specific or domain-invariant)."""
-        momenta = [self.bn_momentum if src != 'SALICON'
+        momenta = [self.bn_momentum if src != 'SALICON' or src!='P4SGAN'
                    else self.static_bn_momentum for src in self.sources]
         if self.ds_bn:
             return DomainBatchNorm2d(

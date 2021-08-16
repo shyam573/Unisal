@@ -55,8 +55,8 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
     dynamic = False
 
     def __init__(self, phase='train', subset=None, verbose=1,
-                out_size=(288, 384), target_size=(360, 560),
-                 preproc_cfg=None, mode="no_mem"):
+                out_size=(288, 448), target_size=(360, 560),
+                 preproc_cfg=None, mode=None):    #mode="no_mem"
         self.phase = phase
         self.train = phase == 'train'
         self.subset = subset
@@ -87,7 +87,6 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
         
         self.strP = "currentFrame" if self.mode=="no_mem" else "withMemory"
         
-        print(self.n_samples)
 
 
     @property
@@ -121,32 +120,40 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
         assert(img is not None)
         return np.ascontiguousarray(img[:, :, ::-1])
     
-    def get_raw_fixations(self, img_nr):
+    # def get_raw_fixations(self, img_nr):
+    #     raw_fix_file = self.dir / 'fixations_mat' / self.strP /  self.phase_str / (
+    #             "Fixation_" + img_nr + '.mat')
+    #     fix_data = scipy.io.loadmat(raw_fix_file)
+    #     fixations_array = [gaze[2] for gaze in fix_data['gaze'][:, 0]]
+    #     return fixations_array, fix_data['resolution'].tolist()[0]
+
+    # def process_raw_fixations(self, fixations_array, res):
+    #     fix_map = np.zeros(res, dtype=np.uint8)
+    #     for subject_fixations in fixations_array:
+    #         fix_map[subject_fixations[:, 1] - 1, subject_fixations[:, 0] - 1]\
+    #             = 255
+    #     return fix_map
+    
+    def process_fixations(self, img_nr):
         raw_fix_file = self.dir / 'fixations_mat' / self.strP /  self.phase_str / (
                 "Fixation_" + img_nr + '.mat')
         fix_data = scipy.io.loadmat(raw_fix_file)
-        fixations_array = [gaze[2] for gaze in fix_data['gaze'][:, 0]]
-        return fixations_array, fix_data['resolution'].tolist()[0]
-
-    def process_raw_fixations(self, fixations_array, res):
-        fix_map = np.zeros(res, dtype=np.uint8)
-        for subject_fixations in fixations_array:
-            fix_map[subject_fixations[:, 1] - 1, subject_fixations[:, 0] - 1]\
-                = 255
+        fix_map = fix_data["fixations"]*255
         return fix_map
 
     def get_fixation_map(self, img_nr):
-        fix_map_file = self.dir / 'fixations' / self.phase_str / (
-                self.file_stem + img_nr + '.png')
+        fix_map_file = self.dir / 'fixations_mat' / self.strP / self.phase_str / (
+                "Fixation_" + img_nr + '.png')
         if fix_map_file.exists():
             fix_map = cv2.imread(str(fix_map_file), cv2.IMREAD_GRAYSCALE)
         else:
-            fixations_array, res = self.get_raw_fixations(img_nr)
-            fix_map = self.process_raw_fixations(fixations_array, res)
+            #fixations_array, res = self.get_raw_fixations(img_nr)
+            #fix_map = self.process_raw_fixations(fixations_array, res)
+            fix_map = self.process_fixations(img_nr)
             cv2.imwrite(str(fix_map_file), fix_map)
         return fix_map
 
-    def preprocess(self, img, data="img"):
+    def preprocess(self, img, data='img'):
         transformations = [
             transforms.ToPILImage(),
         ]
@@ -159,9 +166,9 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
                 transforms.Normalize(
                     self.preproc_cfg['rgb_mean'], self.preproc_cfg['rgb_std']))
         elif data == 'sal':
-            transformations.append(transforms.ToPILImage())
-            transformations.append(transforms.Resize(self.out_size, interpolation=PIL.Image.LANCZOS))
-            transformations.append(transforms.ToTensor())
+            # transformations.append(transforms.ToPILImage())
+            # transformations.append(transforms.Resize(self.out_size, interpolation=PIL.Image.LANCZOS))
+            # transformations.append(transforms.ToTensor())
             transformations.append(transforms.Lambda(utils.normalize_tensor))
         elif data == 'fix':
             transformations.append(
@@ -169,7 +176,8 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
 
         processing = transforms.Compose(transformations)
         tensor = processing(img)
-        return tensor
+        return tensor.to(torch.uint8)
+
 
     def get_data(self, img_nr):
         img = self.get_img(img_nr)
@@ -181,7 +189,7 @@ class P4SGANDataset(Dataset, utils.KwConfigClass):
         
         fix = self.get_fixation_map(img_nr)
         fix = self.preprocess(fix, data='fix')
-
+        
         return [1], img, sal, fix, self.target_size
 
     def __getitem__(self, item):
@@ -262,6 +270,7 @@ class SALICONDataset(Dataset, utils.KwConfigClass):
             fixations_array, res = self.get_raw_fixations(img_nr)
             fix_map = self.process_raw_fixations(fixations_array, res)
             cv2.imwrite(str(fix_map_file), fix_map)
+            
         return fix_map
 
     @property
@@ -306,7 +315,6 @@ class SALICONDataset(Dataset, utils.KwConfigClass):
             return [1], img, self.target_size
 
         sal = self.get_map(img_nr)
-        print("3")
         sal = self.preprocess(sal, data='sal')
         fix = self.get_fixation_map(img_nr)
         fix = self.preprocess(fix, data='fix')

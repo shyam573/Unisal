@@ -5,19 +5,21 @@ import fire
 
 import unisal
 
+import warnings
+warnings.filterwarnings("ignore")
 
-def train(eval_sources=('DHF1K', 'SALICON', 'UCFSports', 'Hollywood'),
+def train(eval_sources= ('P4SGAN',),#('DHF1K', 'SALICON', 'UCFSports', 'Hollywood'),
           **kwargs):
     """Run training and evaluation."""
     trainer = unisal.train.Trainer(**kwargs)
     trainer.fit()
     for source in eval_sources:
-        trainer.score_model(source=source)
+        trainer.score_model(train_id='p4sgan_unisal', source=source)
         trainer.export_scalars()
         trainer.writer.close()
 
 
-def load_trainer(train_id=None):
+def load_trainer(train_id='None'):
     """Instantiate Trainer class from saved kwargs."""
     if train_id is None:
         train_id = 'pretrained_unisal'
@@ -28,12 +30,12 @@ def load_trainer(train_id=None):
 
 
 def score_model(
-        train_id=None,
+        train_id='p4sgan_unisal',
         sources=('P4SGAN', ),
         #sources=('DHF1K', 'SALICON', 'UCFSports', 'Hollywood'),
         **kwargs):
     """Compute the scores for a trained model."""
-
+    
     trainer = load_trainer(train_id)
     for source in sources:
         trainer.score_model(source=source, **kwargs)
@@ -41,8 +43,7 @@ def score_model(
 
 def generate_predictions(
         train_id=None,
-        sources=('DHF1K', 'SALICON', 'UCFSports', 'Hollywood',
-                 'MIT1003', 'MIT300'),
+        sources=('P4SGAN', ),#'DHF1K', 'SALICON', 'UCFSports', 'Hollywood','MIT1003', 'MIT300'),
         **kwargs):
     """Generate predictions with a trained model."""
 

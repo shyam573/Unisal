@@ -103,9 +103,9 @@ class Trainer(utils.KwConfigClass):
                  weight_decay=1e-4,
                  cnn_weight_decay=1e-5,
                  grad_clip=2.,
-                 loss_metrics=('kld', 'nss', 'cc'),
+                 loss_metrics=('kld','cc'),
                  loss_weights=(1, -0.1, -0.1),
-                 data_sources=('SALICON', ),
+                 data_sources=('P4SGAN', ),
                  batch_size=4,
                  salicon_batch_size=1,
                  hollywood_batch_size=4,
@@ -125,7 +125,7 @@ class Trainer(utils.KwConfigClass):
                  model_cfg=None,
                  prefix=None,
                  suffix='unisal',
-                 num_workers=6,
+                 num_workers=0,
                  chkpnt_warmup=3,
                  chkpnt_epochs=2,
                  tboard=True,
@@ -162,6 +162,7 @@ class Trainer(utils.KwConfigClass):
         self.train_cnn_after = train_cnn_after
         self.cnn_eval = cnn_eval
         self.model_cfg = model_cfg or {}
+
         if 'sources' not in self.model_cfg:
             self.model_cfg['sources'] = data_sources
 
@@ -189,6 +190,7 @@ class Trainer(utils.KwConfigClass):
             self.suffix += '_debug'
             self.data_cfg.update({'subset': 0.02})
             self.salicon_cfg.update({'subset': 0.02})
+            self.p4sgan_cfg.update({'subset': 0.02})
             self.hollywood_cfg.update({'subset': 0.04})
             self.ucfsports_cfg.update({'subset': 0.1})
             self.eval_subeset = 1.
@@ -208,6 +210,8 @@ class Trainer(utils.KwConfigClass):
         self._writer = None
         self._salicon_datasets = {}
         self._salicon_dataloaders = {}
+        self.p4sgan_datasets = {}
+        self.p4sgan_dataloaders = {}
         self._hollywood_datasets = {}
         self._hollywood_dataloaders = {}
         self._ucfsports_datasets = {}
@@ -309,10 +313,12 @@ class Trainer(utils.KwConfigClass):
 
             # Get the next batch
             sample = next(data_iters[src])
+            
+            
             target_size = (sample[-1][0][0].item(),
                            sample[-1][1][0].item())
             sample = sample[:-1]
-
+            
             # Fit/evaluate the batch
             loss, loss_summands, batch_size = self.fit_sample(
                 sample, grad_clip=self.grad_clip, target_size=target_size,
@@ -713,7 +719,7 @@ class Trainer(utils.KwConfigClass):
         pred_dir.mkdir(exist_ok=True, parents=True)
         return pred_dir
 
-    def score_model(self, subset=1, source='DHF1K',
+    def score_model(self, subset=1, source='P4SGAN',
              metrics=('kld', 'nss', 'cc', 'sim', 'aucj', 'aucs'),
              smooth_method=None, seq_len_factor=2,
              random_seed=27, n_aucs_maps=10, auc_portion=0.5,
@@ -738,11 +744,11 @@ class Trainer(utils.KwConfigClass):
                 print('No best weights found')
                 self.model.load_last_chkpnt(self.train_dir)
                 print('Last checkpoint loaded')
-
+                
         # Select the appropriate phase (see docstring) and get the dataset
 
         if phase is None:
-            phase = 'eval' if source in ('DHF1K', 'SALICON', 'MIT1003', 'PS4GAN')\
+            phase = 'eval' if source in ('DHF1K', 'SALICON', 'MIT1003', 'P4SGAN')\
                 else 'test'
         dataset = self.get_dataset(phase, source)
 
@@ -762,10 +768,12 @@ class Trainer(utils.KwConfigClass):
                     smooth_method=smooth_method, metrics=metrics,
                     seq_len_factor=seq_len_factor, n_aucs_maps=n_aucs_maps,
                     auc_portion=auc_portion, model_domain=model_domain)
+                this_scores=[np.float64(0) if x != x else x for x in this_scores]  ### added to handle nan values
                 scores.append(this_scores)
                 if vid_idx == 0:
                     print(f' Nr.   ( .../{len(vid_nr_array):4d}), ' +
                           ', '.join(f'{metric:5s}' for metric in metrics))
+                vid_nr=int(vid_nr)
                 print(f'{vid_nr:6d} ' +
                       f'({vid_idx + 1:4d}/{len(vid_nr_array):4d}), ' +
                       ', '.join(f'{score:.3f}' for score in this_scores))
