@@ -1,0 +1,1 @@
+{"phase": "train", "subset": null, "verbose": 1, "out_size": [288, 448], "target_size": [360, 560], "preproc_cfg": {"rgb_mean": [0.563, 0.58, 0.574], "rgb_std": [0.18, 0.17, 0.171]}, "mode": null}

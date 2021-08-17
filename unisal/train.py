@@ -111,6 +111,7 @@ class Trainer(utils.KwConfigClass):
                  hollywood_batch_size=4,
                  ucfsports_batch_size=4,
                  salicon_weight=.5,
+                 p4sgan_weight=.5,
                  hollywood_weight=1.,
                  ucfsports_weight=1.,
                  data_cfg=None,
@@ -150,6 +151,7 @@ class Trainer(utils.KwConfigClass):
         self.hollywood_batch_size = hollywood_batch_size
         self.ucfsports_batch_size = ucfsports_batch_size
         self.salicon_weight = salicon_weight
+        self.p4sgan_weight = p4sgan_weight
         self.hollywood_weight = hollywood_weight
         self.ucfsports_weight = ucfsports_weight
         self.data_cfg = data_cfg or {}
